@@ -104,13 +104,16 @@ void setup() {
       Serial.println("RTC lost power, set time");
       settime();
     }
-    //enable 1Hz output
-    rtc.writeSqwPinMode(DS3231_SquareWave1Hz);
+    
+    // Disable and clear both alarms
+    rtc.disableAlarm(1);
+    rtc.disableAlarm(2);
+    rtc.clearAlarm(1);
+    rtc.clearAlarm(2);
 
-    //setup to handle interrupt from 1Hz pin
+    // Set alarm time
+    rtc.setAlarm1(rtc.now() + TimeSpan(0, 0, 0, 30), DS3231_A1_Second);
     pinMode(LED_BUILTIN, OUTPUT);
-    pinMode(rtcTimerIntPin, INPUT_PULLUP);
-    attachInterrupt (digitalPinToInterrupt (rtcTimerIntPin), rtc_interrupt, CHANGE);
 }
 
 void sendData()
@@ -141,21 +144,25 @@ void sendData()
   Serial.println(Humidity);
 }
 
-void rtc_interrupt(void)
-{
-    flag = true;
-}
 
 void loop() {
-  // put your main code here, to run repeatedly:
+
   server.handleClient();
-  if(flag){
+  
+  if (rtc.alarmFired(1) == true){
+    DateTime now = rtc.now();
+    rtc.clearAlarm(1); 
+    rtc.setAlarm1(now + TimeSpan(0, 0, 0, 30), DS3231_A1_Second);
+    sendData();
+    Serial.println(WiFi.localIP());
+    char buff[] = "Alarm triggered at hh:mm:ss DDD, DD MMM YYYY";
+    Serial.println(now.toString(buff));
+    
     //flash led
     digitalWrite(LED_BUILTIN, HIGH);
-    sendData();
     delay(100);
     digitalWrite(LED_BUILTIN, LOW);
-    flag=false;
+    
   }
 }
 
