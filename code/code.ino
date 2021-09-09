@@ -12,6 +12,9 @@
 const int BUZZER = 5;
 bool onWiFi = false;
 bool onAlarm;
+const int touchPin = 12;
+const int touchThreshold = 25;
+const int touchReadings = 100;
 const int timeout = 10;
 const char* ssid       = "GPONWIFI_68E0";
 const char* password   = "00000086D5";
@@ -60,7 +63,7 @@ void settime()
   Serial.println("RTC TIME");
   Serial.print(now.year(), DEC);
   Serial.print('/');
-  Serial.print(now.month(), DEC); 
+  Serial.print(now.month(), DEC);
   Serial.print('/');
   Serial.print(now.day(), DEC);
   Serial.print(' ');
@@ -134,28 +137,41 @@ void setExternalRTC()
 
   // Set alarm time
   //https://github.com/adafruit/RTClib/blob/master/src/RTClib.h
-//  rtc.setAlarm1(rtc.now() + TimeSpan(0, 0, 0, 30), DS3231_A1_Second);
+  rtc.setAlarm1(rtc.now() + TimeSpan(0, 0, 0, 30), DS3231_A1_Minute);
   rtc.setAlarm2(rtc.now() + TimeSpan(0, 0, 1, 0), DS3231_A2_Minute);
 
 }
 
-void playBuzzer(int times){
+void readTouch()
+{
+  int avgTouch = 0;
+  for (int i = 0; i < touchReadings; i++)
+  {
+    avgTouch += touchRead(touchPin);
+  }
+  yield();
+  avgTouch /= touchReadings;
+  if (avgTouch < touchThreshold) {
+    Serial.println("Detected touch");
+    onAlarm = false;
+  }
+}
+
+void playBuzzer(int times) {
   onAlarm = true;
-  for(int t=0; t< times; t++){
-    if(onAlarm == false){
+  for (int t = 0; t < times; t++) {
+    if (onAlarm == false) {
       break;
     }
-    for(int i=0; i< 200; i++)
-    {
-      digitalWrite(BUZZER, HIGH);
-      delay(1);
-      digitalWrite(BUZZER, LOW);
-      delay(1);
-    }
+    digitalWrite(BUZZER, HIGH);
+    delay(200);
+    digitalWrite(BUZZER, LOW);
+    delay(1);
     //Read touch sensor to check if alarm is stopped manually
-//    readTouch();
+    readTouch();
     delay(5);
   }
+  onAlarm = false;
 }
 
 void setup() {
@@ -242,38 +258,40 @@ void loop() {
     digitalWrite(LED_BUILTIN, HIGH);
     delay(100);
     digitalWrite(LED_BUILTIN, LOW);
-    
+
   }
-  if(rtc.alarmFired(1) == true)
+  if (rtc.alarmFired(1) == true)
   {
+    DateTime now = rtc.now();
     rtc.disableAlarm(1);
     rtc.clearAlarm(1);
+    rtc.setAlarm1(now + TimeSpan(0, 0, 0, 30), DS3231_A1_Second);
     char buff[] = "Alarm 1:Buzzer triggered at hh:mm:ss DDD, DD MMM YYYY";
     Serial.println(rtc.now().toString(buff));
-    playBuzzer(5);
+    playBuzzer(10);
   }
 }
 
 void handle_OnConnect() {
   Temperature = dht.readTemperature(); // Gets the values of the temperature
   Humidity = dht.readHumidity(); // Gets the values of the humidity
-  server.send(200,"application/json",sendString(Temperature,Humidity));
-//  server.send(200, "text/html", SendHTML(Temperature, Humidity));
+  server.send(200, "application/json", sendString(Temperature, Humidity));
+  //  server.send(200, "text/html", SendHTML(Temperature, Humidity));
 }
 
 void handle_OnConnect_page() {
   Temperature = dht.readTemperature(); // Gets the values of the temperature
   Humidity = dht.readHumidity(); // Gets the values of the humidity
-//  server.send(200,"application/json",sendString(Temperature,Humidity));
+  //  server.send(200,"application/json",sendString(Temperature,Humidity));
   server.send(200, "text/html", SendHTML(Temperature, Humidity));
 }
 
 String sendString(float Temperature, float Humidity)
 {
   String ptr = "{";
-  ptr+="\"temperature\": \""+String(Temperature)+"\"";
-  ptr+=",\"humidity\": \""+String(Humidity)+"\"";
-  ptr+="}";
+  ptr += "\"temperature\": \"" + String(Temperature) + "\"";
+  ptr += ",\"humidity\": \"" + String(Humidity) + "\"";
+  ptr += "}";
   return ptr;
 }
 
